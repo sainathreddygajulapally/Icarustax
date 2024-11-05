@@ -5,17 +5,17 @@ import Header from './Header';
 
 const TaxComfortPage = () => {
     const navigate = useNavigate();
-    const { state } = useLocation(); // Retrieve the state passed from TaxFilingPage
-    const selectedOptions = state ? state.selectedOptions : {}; // Access the selectedOptions
+    const { state } = useLocation();
+    const selectedOptions = state ? state.selectedOptions : {};
 
     const [requiredForms, setRequiredForms] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [error, setError] = useState(null); // Track error state
 
     // Function to handle API call to OpenAI
     const fetchRequiredForms = async () => {
         setLoading(true);
-        setError('');
+        setError(null); // Reset error before new API call
         try {
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
@@ -33,14 +33,20 @@ const TaxComfortPage = () => {
                 }),
             });
 
+            if (!response.ok) {
+                throw new Error(`Error: ${response.status} - ${response.statusText}`);
+            }
+
             const data = await response.json();
-            const formsList = data.choices[0].message.content.split('\n').map(form => {
-                const [name, description] = form.split(':');
-                return { name: name?.trim(), description: description?.trim() };
-            }).filter(form => form.name && form.description);
-
-            setRequiredForms(formsList);
-
+            if (data.choices && data.choices.length > 0) {
+                const formsList = data.choices[0].message.content.split('\n').map(form => {
+                    const [name, description] = form.split(':');
+                    return { name: name?.trim(), description: description?.trim() };
+                }).filter(form => form.name && form.description);
+                setRequiredForms(formsList);
+            } else {
+                setError('No forms were returned from the API. Please try again later.');
+            }
         } catch (error) {
             console.error('Error fetching required forms:', error);
             setError('Could not fetch forms. Please try again later.');
@@ -49,12 +55,10 @@ const TaxComfortPage = () => {
         }
     };
 
-    // Function to handle selection and initiate the API call
     const handleComfortableClick = async () => {
         await fetchRequiredForms();
     };
 
-    // Function to navigate to the W-2 upload page
     const handleHelpClick = () => {
         navigate('/w2-upload');
     };
@@ -62,50 +66,45 @@ const TaxComfortPage = () => {
     return (
         <div className="tax-comfort-page">
             <Header />
-
             <div className="tax-comfort-container">
                 <h2>How comfortable do you feel doing your own taxes?</h2>
                 <p>We'll show our expert help options and make a recommendation.</p>
 
                 <div className="comfort-options">
                     <div className="option-card" onClick={handleComfortableClick}>
-                        <div className="icon">
-                            <span role="img" aria-label="business person">👨‍💼</span>
-                        </div>
+                        <div className="icon" role="img" aria-label="person with laptop">👨‍💼</div>
                         <p>Comfortable on my own</p>
                     </div>
                     <div className="option-card" onClick={() => console.log("Selected: Prefer to hand off to an expert")}>
-                        <div className="icon">
-                            <span role="img" aria-label="woman business person">👩‍💼</span>
-                        </div>
+                        <div className="icon" role="img" aria-label="person with headset">👩‍💼</div>
                         <p>Want help when I need it</p>
                     </div>
                     <div className="option-card" onClick={handleHelpClick}>
-                        <div className="icon">
-                            <span role="img" aria-label="expert">🧑‍💼</span>
-                        </div>
+                        <div className="icon" role="img" aria-label="person with briefcase">🧑‍💼</div>
                         <p>Prefer to hand off to an expert</p>
                     </div>
                 </div>
 
                 {loading ? (
-                    <div className="spinner"></div> // Loading spinner
+                    <p>Loading required forms...</p>
                 ) : error ? (
-                    <p className="error-message">{error}</p> // Error message if API call fails
-                ) : requiredForms.length > 0 && (
-                    <div className="forms-list">
-                        <h3>Required Tax Forms</h3>
-                        <ul>
-                            {requiredForms.map((form, index) => (
-                                <li key={index}>
-                                    <a href={`https://www.irs.gov/pub/irs-pdf/${form.name}.pdf`} target="_blank" rel="noopener noreferrer">
-                                        {form.name}
-                                    </a>
-                                    <p>{form.description}</p>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
+                    <p className="error">{error}</p>
+                ) : (
+                    requiredForms.length > 0 && (
+                        <div className="forms-list">
+                            <h3>Required Tax Forms</h3>
+                            <ul>
+                                {requiredForms.map((form, index) => (
+                                    <li key={index}>
+                                        <a href={`https://www.irs.gov/pub/irs-pdf/${form.name}.pdf`} target="_blank" rel="noopener noreferrer">
+                                            {form.name}
+                                        </a>
+                                        <p>{form.description}</p>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )
                 )}
 
                 <button className="back-button" onClick={() => navigate('/tax-filing')}>← Back</button>
